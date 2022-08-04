@@ -1,0 +1,31 @@
+{
+  "name": "alnv/backend-user-notification-bundle",
+  "type": "contao-bundle",
+  "license": "proprietary",
+  "description": "",
+  "autoload": {
+    "psr-4": {
+      "Alnv\\ContaoBackendUserNotificationBundle\\": "src/"
+    },
+    "classmap": [
+      "src/Resources/contao/"
+    ],
+    "exclude-from-classmap": [
+      "src/Resources/contao/config/"
+    ]
+  },
+  "require": {
+    "contao/core-bundle": "~4.9"
+  },
+  "config": {
+    "preferred-install": "dist"
+  },
+  "extra": {
+    "contao": {
+      "sources": {
+        "": "system/modules/contao-backend-user-notification-bundle"
+      }
+    },
+    "contao-manager-plugin": "Alnv\\ContaoBackendUserNotificationBundle\\ContaoManager\\Plugin"
+  }
+}
