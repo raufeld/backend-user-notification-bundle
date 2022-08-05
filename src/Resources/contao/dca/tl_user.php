@@ -34,9 +34,9 @@ $GLOBALS['TL_DCA']['tl_user']['config']['onload_callback'][] = function () {
 
         $objEmail = new Email();
         $objEmail->fromName = \Config::get('adminEmail');
-        $objEmail->subject = $strSubject;
-        $objEmail->text = $strText;
-        $objEmail->html = $strText;
+        $objEmail->subject = \Controller::replaceInsertTags($strSubject);
+        $objEmail->text = \Controller::replaceInsertTags($strText);
+        $objEmail->html = \Controller::replaceInsertTags($strText);
         $objEmail->sendTo($objUser->email);
 
         \Database::getInstance()->prepare('UPDATE tl_user %s WHERE id=?')->set($arrSet)->limit(1)->execute($objUser->id);
