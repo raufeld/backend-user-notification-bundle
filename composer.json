@@ -15,7 +15,7 @@
     ]
   },
   "require": {
-    "contao/core-bundle": "~4.9"
+    "contao/core-bundle": "~4.13 || ~5.3"
   },
   "config": {
     "preferred-install": "dist"

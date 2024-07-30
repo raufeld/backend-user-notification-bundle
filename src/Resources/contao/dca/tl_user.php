@@ -1,22 +1,37 @@
 <?php
 
+use Alnv\ContaoBackendUserNotificationBundle\Library\Helpers;
+use Contao\Backend;
+use Contao\BackendUser;
+use Contao\Config;
+use Contao\Controller;
+use Contao\Database;
+use Contao\Email;
+use Contao\Environment;
+use Contao\Image;
+use Contao\Input;
+use Contao\StringUtil;
+use Contao\System;
+use Contao\UserModel;
+
 $GLOBALS['TL_DCA']['tl_user']['config']['onload_callback'][] = function () {
 
-    if (!\Input::get('notify')) {
-        return null;
-    }
+    $strNotify = Input::get('notify') ?: '';
 
-    $strNotify = \Input::get('notify') ?: '';
+    if (!$strNotify) {
+        return;
+    }
 
     if ($strNotify == 'password') {
 
-        $objUser = \UserModel::findByPk(\Input::get('id'));
-        $strPassword = \Alnv\ContaoBackendUserNotificationBundle\Library\Helpers::generatePassword();
-        $objPasswordHasher = \System::getContainer()->get('security.password_hasher_factory')->getPasswordHasher(\BackendUser::class);
+        $objUser = UserModel::findByPk(Input::get('id'));
+        $strPassword = Helpers::generatePassword();
+        $simpleTokenParser = System::getContainer()->get('contao.string.simple_token_parser');
+        $objPasswordHasher = System::getContainer()->get('security.password_hasher_factory')->getPasswordHasher(BackendUser::class);
 
         $arrSet = [
-            'disable' => '',
-            'pwChange' => '1',
+            'disable' => 0,
+            'pwChange' => 1,
             'tstamp' => time(),
             'password' => $objPasswordHasher->hash($strPassword)
         ];
@@ -26,23 +41,27 @@ $GLOBALS['TL_DCA']['tl_user']['config']['onload_callback'][] = function () {
             'email' => $objUser->email,
             'username' => $objUser->username,
             'password' => $strPassword,
-            'domain' => \Environment::get('url') . '/contao'
+            'domain' => Environment::get('url') . '/contao'
         ];
 
-        $strSubject = \StringUtil::parseSimpleTokens(\Config::get('emailSubject'), $arrTokens) ?: '';
-        $strText = \StringUtil::parseSimpleTokens(\Config::get('emailText'), $arrTokens) ?: '';
+        $strSubject = $simpleTokenParser->parse((Config::get('emailSubject') ?? ''), $arrTokens);
+        $strText = $simpleTokenParser->parse((Config::get('emailText') ?? ''), $arrTokens);
+
+        Database::getInstance()
+            ->prepare('UPDATE tl_user %s WHERE id=?')
+            ->set($arrSet)
+            ->limit(1)
+            ->execute($objUser->id);
 
         $objEmail = new Email();
-        $objEmail->fromName = \Config::get('adminEmail');
-        $objEmail->subject = \Controller::replaceInsertTags($strSubject);
-        $objEmail->text = \Controller::replaceInsertTags($strText);
-        $objEmail->html = \Controller::replaceInsertTags($strText);
+        $objEmail->fromName = Config::get('adminEmail');
+        $objEmail->subject = System::getContainer()->get('contao.insert_tag.parser')->replaceInline($strSubject);
+        $objEmail->text = System::getContainer()->get('contao.insert_tag.parser')->replaceInline($strText);
+        $objEmail->html = System::getContainer()->get('contao.insert_tag.parser')->replaceInline($strText);
         $objEmail->sendTo($objUser->email);
-
-        \Database::getInstance()->prepare('UPDATE tl_user %s WHERE id=?')->set($arrSet)->limit(1)->execute($objUser->id);
     }
 
-    \Controller::redirect(preg_replace('/&(amp;)?notify=[^&]*/i', '', preg_replace( '/&(amp;)?' . preg_quote(\Input::get('notify'), '/') . '=[^&]*/i', '', \Environment::get('request'))));
+    Controller::redirect(preg_replace('/&(amp;)?notify=[^&]*/i', '', preg_replace('/&(amp;)?' . preg_quote(Input::get('notify'), '/') . '=[^&]*/i', '', Environment::get('request'))));
 };
 
 $GLOBALS['TL_DCA']['tl_user']['list']['operations']['notifyPassword'] = [
@@ -51,14 +70,20 @@ $GLOBALS['TL_DCA']['tl_user']['list']['operations']['notifyPassword'] = [
     'button_callback' => ['tl_user_notify', 'notifyUser']
 ];
 
-class tl_user_notify {
+class tl_user_notify
+{
 
-    public function notifyUser($row, $href, $label, $title, $icon) {
+    public function notifyUser($row, $href, $label, $title, $icon): string
+    {
 
-        if ($row['id'] == \BackendUser::getInstance()->id) {
+        if ($row['id'] == BackendUser::getInstance()->id) {
             return '';
         }
 
-        return '<a href="' . \Backend::addToUrl($href . '&amp;id=' . $row['id']) . '" title="' . StringUtil::specialchars($title) . '">' . Image::getHtml($icon, $label) . '</a> ';
+        if (!Config::get('emailText')) {
+            return '';
+        }
+
+        return '<a href="' . Backend::addToUrl($href . '&amp;id=' . $row['id']) . '" title="' . StringUtil::specialchars($title) . '">' . Image::getHtml($icon, $label) . '</a> ';
     }
 }
